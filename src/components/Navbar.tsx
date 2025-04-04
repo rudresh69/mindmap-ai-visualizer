@@ -1,10 +1,14 @@
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Brain } from "lucide-react";
+import { Menu, X, Brain, User, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const { isAuthenticated, logout, user } = useAuth();
 
   return (
     <nav className="bg-background border-b border-border py-4">
@@ -20,8 +24,32 @@ const Navbar = () => {
             <a href="#" className="text-foreground hover:text-primary transition-colors">Home</a>
             <a href="#features" className="text-foreground hover:text-primary transition-colors">Features</a>
             <a href="#create" className="text-foreground hover:text-primary transition-colors">Create</a>
-            <Button variant="outline" className="ml-2">Sign In</Button>
-            <Button>Get Started</Button>
+            
+            {isAuthenticated ? (
+              <>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => navigate('/sessions')} 
+                  className="flex items-center gap-2"
+                >
+                  <User className="h-4 w-4" />
+                  Sessions
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={logout} 
+                  className="flex items-center gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" className="ml-2">Sign In</Button>
+                <Button>Get Started</Button>
+              </>
+            )}
           </div>
           
           {/* Mobile Menu Button */}
@@ -43,10 +71,35 @@ const Navbar = () => {
             <a href="#" className="text-foreground hover:text-primary transition-colors">Home</a>
             <a href="#features" className="text-foreground hover:text-primary transition-colors">Features</a>
             <a href="#create" className="text-foreground hover:text-primary transition-colors">Create</a>
-            <div className="flex flex-col space-y-2 pt-2">
-              <Button variant="outline">Sign In</Button>
-              <Button>Get Started</Button>
-            </div>
+            
+            {isAuthenticated ? (
+              <>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => {
+                    navigate('/sessions');
+                    setIsMenuOpen(false);
+                  }} 
+                  className="flex items-center justify-start gap-2"
+                >
+                  <User className="h-4 w-4" />
+                  Sessions
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={logout} 
+                  className="flex items-center justify-start gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <div className="flex flex-col space-y-2 pt-2">
+                <Button variant="outline">Sign In</Button>
+                <Button>Get Started</Button>
+              </div>
+            )}
           </div>
         )}
       </div>
