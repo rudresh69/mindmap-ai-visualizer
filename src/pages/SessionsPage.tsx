@@ -1,5 +1,5 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,14 +11,26 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { formatDistanceToNow } from 'date-fns';
-import { Globe, Smartphone, Laptop, Clock, AlertTriangle } from 'lucide-react';
+import { Globe, Smartphone, Laptop, Clock, AlertTriangle, Loader2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 
 const SessionsPage = () => {
   const { sessions, fetchSessions, logoutSession, logoutAllSessions } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    fetchSessions();
+    const loadSessions = async () => {
+      setIsLoading(true);
+      try {
+        await fetchSessions();
+      } catch (error) {
+        console.error('Error fetching sessions:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadSessions();
   }, [fetchSessions]);
   
   const getDeviceIcon = (device: string) => {
@@ -39,13 +51,19 @@ const SessionsPage = () => {
             variant="destructive" 
             onClick={logoutAllSessions}
             className="flex items-center gap-2"
+            disabled={isLoading || sessions.length === 0}
           >
             <AlertTriangle className="h-4 w-4" />
             Logout All Devices
           </Button>
         </div>
         
-        {sessions.length === 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2 text-lg">Loading sessions...</span>
+          </div>
+        ) : sessions.length === 0 ? (
           <Card className="bg-muted/50">
             <CardContent className="pt-6 text-center">
               <p>No active sessions found.</p>
@@ -54,14 +72,18 @@ const SessionsPage = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {sessions.map(session => (
-              <Card key={session.id}>
+              <Card key={session.id || `session-${Math.random()}`}>
                 <CardHeader className="flex flex-row items-center gap-4">
                   {getDeviceIcon(session.device)}
                   <div>
                     <CardTitle className="text-lg">{session.device || "Unknown Device"}</CardTitle>
                     <CardDescription className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      Last active {formatDistanceToNow(new Date(session.lastActive))} ago
+                      {session.lastActive ? (
+                        `Last active ${formatDistanceToNow(new Date(session.lastActive))} ago`
+                      ) : (
+                        "Last activity unknown"
+                      )}
                     </CardDescription>
                   </div>
                 </CardHeader>
@@ -69,8 +91,8 @@ const SessionsPage = () => {
                   <div className="flex items-start gap-2 text-sm text-muted-foreground">
                     <Globe className="h-4 w-4 mt-0.5" />
                     <div>
-                      <p>{session.ipAddress}</p>
-                      <p>{session.location || "Unknown location"}</p>
+                      <p>{session.ipAddress || "IP unknown"}</p>
+                      <p>{session.location || "Location unknown"}</p>
                     </div>
                   </div>
                 </CardContent>

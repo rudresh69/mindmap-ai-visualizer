@@ -1,5 +1,5 @@
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,6 +12,7 @@ interface SessionManagerProps {
 const SessionManager = ({ children }: SessionManagerProps) => {
   const navigate = useNavigate();
   const { isAuthenticated, refreshToken, logout, user } = useAuth();
+  const [trackingEnabled, setTrackingEnabled] = useState(true);
   
   // Check and refresh token when needed
   useEffect(() => {
@@ -21,15 +22,26 @@ const SessionManager = ({ children }: SessionManagerProps) => {
     const tokenRefreshInterval = setInterval(() => {
       refreshToken().catch((error) => {
         console.error('Failed to refresh token:', error);
-        toast({
-          title: 'Session expired',
-          description: 'Please log in again to continue.',
-          variant: 'destructive',
-        });
-        logout();
-        navigate('/login');
+        if (import.meta.env.PROD) {
+          toast({
+            title: 'Session expired',
+            description: 'Please log in again to continue.',
+            variant: 'destructive',
+          });
+          logout();
+          navigate('/login');
+        }
       });
     }, 15 * 60 * 1000); // Refresh token every 15 minutes
+    
+    return () => {
+      clearInterval(tokenRefreshInterval);
+    };
+  }, [isAuthenticated, refreshToken, logout, navigate, user]);
+  
+  // Set up session activity tracking
+  useEffect(() => {
+    if (!isAuthenticated || !user || !trackingEnabled) return;
     
     // Initialize session service
     const sessionService = SessionService.getInstance();
@@ -43,17 +55,28 @@ const SessionManager = ({ children }: SessionManagerProps) => {
           
           if (sessionId) {
             // Update session activity in Redis
-            await sessionService.updateSessionActivity(sessionId);
+            await sessionService.updateSessionActivity(sessionId).catch(err => {
+              console.error('Failed to update session activity in Redis:', err);
+              // Disable tracking after multiple failures to avoid console spam
+              if (err.message?.includes('maximum call stack size exceeded')) {
+                setTrackingEnabled(false);
+                console.warn('Session tracking disabled due to errors');
+              }
+            });
             
-            // Also send activity ping to backend
-            fetch('/api/session/activity', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-              },
-              body: JSON.stringify({ sessionId }),
-            }).catch(err => console.error('Failed to update activity status:', err));
+            // Only try API call in production
+            if (import.meta.env.PROD) {
+              fetch('/api/session/activity', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                },
+                body: JSON.stringify({ sessionId }),
+              }).catch(err => {
+                console.error('Failed to update activity status via API:', err);
+              });
+            }
           }
         } catch (error) {
           console.error('Failed to track activity:', error);
@@ -61,21 +84,32 @@ const SessionManager = ({ children }: SessionManagerProps) => {
       }
     };
     
+    // Set up activity tracking with throttling
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    const throttledTrackActivity = () => {
+      if (timeout === null) {
+        timeout = setTimeout(() => {
+          trackActivity();
+          timeout = null;
+        }, 60000); // Throttle to once per minute at most
+      }
+    };
+    
     // Set up activity tracking events
-    window.addEventListener('mousemove', trackActivity);
-    window.addEventListener('keypress', trackActivity);
-    window.addEventListener('click', trackActivity);
+    window.addEventListener('mousemove', throttledTrackActivity);
+    window.addEventListener('keypress', throttledTrackActivity);
+    window.addEventListener('click', throttledTrackActivity);
     
     // Initial activity tracking
     trackActivity();
     
     return () => {
-      clearInterval(tokenRefreshInterval);
-      window.removeEventListener('mousemove', trackActivity);
-      window.removeEventListener('keypress', trackActivity);
-      window.removeEventListener('click', trackActivity);
+      window.removeEventListener('mousemove', throttledTrackActivity);
+      window.removeEventListener('keypress', throttledTrackActivity);
+      window.removeEventListener('click', throttledTrackActivity);
+      if (timeout) clearTimeout(timeout);
     };
-  }, [isAuthenticated, refreshToken, logout, navigate, user]);
+  }, [isAuthenticated, user, trackingEnabled]);
   
   return <>{children}</>;
 };

@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,7 +14,14 @@ import RedisService from "./services/RedisService";
 import { toast } from "@/hooks/use-toast";
 
 // Create a client
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // Redis configuration
 const redisConfig = {
@@ -24,13 +31,27 @@ const redisConfig = {
 };
 
 const App = () => {
+  const [redisInitialized, setRedisInitialized] = useState(false);
+  
   useEffect(() => {
     // Initialize Redis connection
     const initRedis = async () => {
       try {
         const redisService = RedisService.getInstance();
-        await redisService.connect(redisConfig);
-        console.log("Redis service initialized successfully");
+        
+        // Only attempt connection in production or if VITE_ENABLE_REDIS is set to true
+        if (import.meta.env.PROD || import.meta.env.VITE_ENABLE_REDIS === 'true') {
+          await redisService.connect(redisConfig);
+          console.log("Redis service initialized successfully");
+        } else {
+          // In development, use the browser mock directly
+          await redisService.connect({
+            url: 'browser-mock'
+          });
+          console.log("Using browser Redis mock for development");
+        }
+        
+        setRedisInitialized(true);
       } catch (error) {
         console.error('Failed to initialize Redis:', error);
         toast({
@@ -38,6 +59,17 @@ const App = () => {
           description: "Using local storage fallback for session management",
           variant: "destructive",
         });
+        
+        // Use browser mock as fallback
+        try {
+          const redisService = RedisService.getInstance();
+          await redisService.connect({
+            url: 'browser-mock'
+          });
+          setRedisInitialized(true);
+        } catch (fallbackError) {
+          console.error('Failed to initialize browser Redis mock:', fallbackError);
+        }
       }
     };
     
@@ -57,6 +89,18 @@ const App = () => {
       cleanupRedis();
     };
   }, []);
+  
+  // Only render the app once Redis (or the fallback) is initialized
+  if (!redisInitialized) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-lg">Initializing application...</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <QueryClientProvider client={queryClient}>
