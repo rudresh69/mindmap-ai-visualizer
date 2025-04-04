@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,11 +10,33 @@ import SessionManager from "@/components/SessionManager";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import SessionsPage from "./pages/SessionsPage";
+import RedisService from "./services/RedisService";
 
 // Create a client
 const queryClient = new QueryClient();
 
+// Redis configuration
+const redisConfig = {
+  url: import.meta.env.VITE_REDIS_URL || 'redis://localhost:6379',
+  password: import.meta.env.VITE_REDIS_PASSWORD,
+  username: import.meta.env.VITE_REDIS_USERNAME,
+};
+
 const App = () => {
+  useEffect(() => {
+    // Initialize Redis connection
+    const initRedis = async () => {
+      try {
+        const redisService = RedisService.getInstance();
+        await redisService.connect(redisConfig);
+      } catch (error) {
+        console.error('Failed to initialize Redis:', error);
+      }
+    };
+    
+    initRedis();
+  }, []);
+  
   return (
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
