@@ -10,6 +10,7 @@ import SessionManager from "@/components/SessionManager";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import SessionsPage from "./pages/SessionsPage";
+import ProfilePage from "./pages/ProfilePage";
 import RedisService from "./services/RedisService";
 import { toast } from "@/hooks/use-toast";
 
@@ -113,6 +114,7 @@ const App = () => {
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/sessions" element={<SessionsPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
